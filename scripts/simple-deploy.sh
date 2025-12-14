@@ -38,29 +38,41 @@ echo ""
 
 # Check if package.json exists
 if [ ! -f "$PROJECT_DIR/package.json" ]; then
-    echo "${YELLOW}Warning:${RESET} No package.json found. Skipping build step."
+    echo "${YELLOW}Warning:${RESET} No package.json found. Skipping test and build steps."
 else
-    # Check if build script exists in package.json
-    if grep -q '"build"' "$PROJECT_DIR/package.json"; then
-        echo "${BLUE}[1/3]${RESET} Running build step..."
-        
-        # Check if node_modules exists, suggest npm install if not
-        if [ ! -d "$PROJECT_DIR/node_modules" ]; then
-            echo "${YELLOW}Warning:${RESET} node_modules not found. Running 'npm install' first..."
-            (cd "$PROJECT_DIR" && npm install)
-        fi
-        
-        # Run the build
-        (cd "$PROJECT_DIR" && npm run build)
-        
+    # Check if node_modules exists, suggest npm install if not
+    if [ ! -d "$PROJECT_DIR/node_modules" ]; then
+        echo "${YELLOW}Warning:${RESET} node_modules not found. Running 'npm install' first..."
+        (cd "$PROJECT_DIR" && npm install)
+    fi
+
+    # 1. Run tests
+    if grep -q '"test"' "$PROJECT_DIR/package.json"; then
+        echo "${BLUE}[1/4]${RESET} Running test step..."
+        (cd "$PROJECT_DIR" && npm test)
         if [ $? -eq 0 ]; then
-            echo "${GREEN}✓${RESET} Build completed successfully"
+            echo "${GREEN}✓${RESET} Tests passed"
         else
-            echo "${RED}✗${RESET} Build failed"
+            echo "${RED}✗${RESET} Tests failed. Aborting deployment."
             exit 1
         fi
     else
-        echo "${YELLOW}[1/3]${RESET} No 'build' script found in package.json. Skipping build step."
+        echo "${YELLOW}[1/4]${RESET} No 'test' script found in package.json. Skipping test step."
+    fi
+
+    # 2. Run build
+    echo ""
+    if grep -q '"build"' "$PROJECT_DIR/package.json"; then
+        echo "${BLUE}[2/4]${RESET} Running build step..."
+        (cd "$PROJECT_DIR" && npm run build)
+        if [ $? -eq 0 ]; then
+            echo "${GREEN}✓${RESET} Build completed successfully"
+        else
+            echo "${RED}✗${RESET} Build failed. Aborting deployment."
+            exit 1
+        fi
+    else
+        echo "${YELLOW}[2/4]${RESET} No 'build' script found in package.json. Skipping build step."
     fi
 fi
 
@@ -77,77 +89,54 @@ else
     echo "  Deploying entire project directory (excluding node_modules, etc.)"
 fi
 
-# Create deploy directory
-DEPLOY_DIR="$PROJECT_DIR/deploy"
+# Prepare for packaging
+PACKAGE_NAME=$(grep '"name"' "$PROJECT_DIR/package.json" | cut -d '"' -f 4)-$(grep '"version"' "$PROJECT_DIR/package.json" | cut -d '"' -f 4).tar.gz
+DEPLOY_ARTIFACT_DIR="$PROJECT_DIR/deploy"
+DEPLOY_ARTIFACT_PATH="$DEPLOY_ARTIFACT_DIR/$PACKAGE_NAME"
+
 echo ""
-echo "${BLUE}[2/3]${RESET} Preparing deploy directory..."
+echo "${BLUE}[3/4]${RESET} Creating deployment package..."
 
-# Remove existing deploy directory if it exists
-if [ -d "$DEPLOY_DIR" ]; then
-    echo "  Removing existing deploy directory..."
-    rm -rf "$DEPLOY_DIR"
-fi
+mkdir -p "$DEPLOY_ARTIFACT_DIR"
 
-mkdir -p "$DEPLOY_DIR"
-
-# Copy files to deploy directory
-echo "${BLUE}[3/3]${RESET} Copying files to deploy/..."
-
+# Create the tarball
 if [ -n "$BUILD_DIR" ]; then
-    echo "  Copying from: $BUILD_DIR"
-    cp -r "$BUILD_DIR"/* "$DEPLOY_DIR/" 2>/dev/null || cp -r "$BUILD_DIR"/. "$DEPLOY_DIR/"
-    
-    # Also copy package.json if it exists (for production dependencies)
+    echo "  Archiving build artifacts from '$BUILD_DIR'..."
+    # Create a temporary directory to stage files for consistent archive structure
+    STAGE_DIR=$(mktemp -d)
+    cp -r "$BUILD_DIR"/* "$STAGE_DIR/"
     if [ -f "$PROJECT_DIR/package.json" ]; then
-        cp "$PROJECT_DIR/package.json" "$DEPLOY_DIR/"
-        # Create a minimal package.json for production
-        if command -v node >/dev/null 2>&1; then
-            node -e "
-                const pkg = require('./${PROJECT_DIR}/package.json');
-                const prodPkg = {
-                    name: pkg.name,
-                    version: pkg.version,
-                    main: pkg.main || 'index.js',
-                    dependencies: pkg.dependencies || {}
-                };
-                require('fs').writeFileSync(
-                    './${DEPLOY_DIR}/package.json',
-                    JSON.stringify(prodPkg, null, 2) + '\n'
-                );
-            " 2>/dev/null || cp "$PROJECT_DIR/package.json" "$DEPLOY_DIR/"
-        fi
+        cp "$PROJECT_DIR/package.json" "$STAGE_DIR/"
     fi
+    (cd "$STAGE_DIR" && tar -czf "$DEPLOY_ARTIFACT_PATH" .)
+    rm -rf "$STAGE_DIR"
 else
-    # Copy entire project, excluding common ignore patterns
-    echo "  Copying project files (excluding node_modules, .git, etc.)..."
-    (cd "$PROJECT_DIR" && find . -type f \
-        ! -path "./node_modules/*" \
-        ! -path "./.git/*" \
-        ! -path "./deploy/*" \
-        ! -path "./.DS_Store" \
-        ! -path "./*.log" \
-        -exec cp --parents {} "$DEPLOY_DIR/" \; 2>/dev/null || \
-    rsync -av --exclude 'node_modules' --exclude '.git' --exclude 'deploy' \
-        --exclude '*.log' --exclude '.DS_Store' \
-        . "$DEPLOY_DIR/" 2>/dev/null || \
-    echo "${YELLOW}Note:${RESET} Using basic copy method. Some files may be included that shouldn't be.")
+    echo "  Archiving entire project (excluding dev files)..."
+    tar -czf "$DEPLOY_ARTIFACT_PATH" \
+        --exclude="node_modules" \
+        --exclude=".git" \
+        --exclude="deploy" \
+        --exclude="*.log" \
+        --exclude=".DS_Store" \
+        -C "$PROJECT_DIR" .
 fi
 
-# Create deployment info file
-cat > "$DEPLOY_DIR/.deploy-info" << EOF
-Deployed: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
-Source: $PROJECT_DIR
-Build directory: ${BUILD_DIR:-"N/A (full project copy)"}
-EOF
+echo "${GREEN}✓${RESET} Created package: $DEPLOY_ARTIFACT_PATH"
+
+echo ""
+echo "${BLUE}[4/4]${RESET} Validating deployment package..."
+if [ -s "$DEPLOY_ARTIFACT_PATH" ]; then
+    echo "${GREEN}✓${RESET} Package is not empty."
+else
+    echo "${RED}✗${RESET} Package is empty or could not be created."
+    exit 1
+fi
 
 echo ""
 echo "${GREEN}✓${RESET} Deployment simulation complete!"
 echo ""
-echo "Deployed files are in: $DEPLOY_DIR"
+echo "Deployment artifact created at: $DEPLOY_ARTIFACT_PATH"
 echo ""
 echo "${BLUE}Next steps (simulated):${RESET}"
-echo "  - Review files in $DEPLOY_DIR"
-echo "  - Upload to server"
-echo "  - Run production setup (e.g., npm install --production)"
-echo "  - Start application"
-
+echo "  - Upload '$PACKAGE_NAME' to a server or artifact repository"
+echo "  - On the server: unpack, run 'npm install --production', and start"

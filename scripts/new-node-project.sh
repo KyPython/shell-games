@@ -33,7 +33,7 @@ if [ -d "$PROJECT_NAME" ]; then
 fi
 
 echo "Creating Node.js/TypeScript project: $PROJECT_NAME"
-mkdir -p "$PROJECT_NAME/src"
+mkdir -p "$PROJECT_NAME/src" "$PROJECT_NAME/tests"
 
 # Create package.json (using non-quoted heredoc for variable expansion)
 cat > "$PROJECT_NAME/package.json" << EOF
@@ -46,7 +46,8 @@ cat > "$PROJECT_NAME/package.json" << EOF
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
@@ -130,10 +131,20 @@ npm start      # Run built code
 - \`dist/\` - Compiled JavaScript (generated)
 EOF
 
+# Initialize Git repository
+if command -v git >/dev/null 2>&1; then
+    echo "Initializing Git repository..."
+    (cd "$PROJECT_NAME" && git init && git add . && git commit -m "Initial commit: scaffold project with new-node-project.sh") >/dev/null 2>&1
+    if [ $? -eq 0 ]; then
+        echo "✓ Git repository initialized and initial commit created."
+    else
+        echo "⚠ Warning: Failed to initialize git repository."
+    fi
+fi
+
 echo "✓ Project '$PROJECT_NAME' created successfully!"
 echo ""
 echo "Next steps:"
 echo "  cd $PROJECT_NAME"
 echo "  npm install"
-echo "  npm run build"
-
+echo "  npm run dev"
