@@ -1,0 +1,24 @@
+{
+  "name": "shell-games",
+  "version": "1.0.0",
+  "description": "A collection of reusable shell scripts that automate common development tasks",
+  "scripts": {
+    "check-env": "./scripts/dev-env-check.sh",
+    "gen:project": "./scripts/new-node-project.sh",
+    "deploy": "./scripts/simple-deploy.sh",
+    "test:all": "./scripts/test-all.sh",
+    "lint:test": "./scripts/lint-and-test.sh"
+  },
+  "keywords": [
+    "shell-scripts",
+    "automation",
+    "dev-tools",
+    "cli"
+  ],
+  "author": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KyPython/shell-games.git"
+  }
+}

@@ -6,6 +6,13 @@
 #
 # Checks for common development tools and reports their installation status and version.
 # It can validate against required versions defined in the script.
+#
+# CI/CD Support:
+#   Set CI=true to enable CI mode (optional checks fail gracefully)
+#   Example: CI=true ./scripts/dev-env-check.sh
+
+# Detect CI environment
+CI_MODE="${CI:-false}"
 
 set -e
 set -u
@@ -17,6 +24,21 @@ set -u
 CORE_TOOLS="Node.js|node|>=20 npm|npm|>=9 Git|git"
 OPTIONAL_TOOLS="Docker|docker Python 3|python3"
 # --- End Configuration ---
+
+# --- Extensibility Hook ---
+# Allow projects to extend with custom checks (e.g., Supabase, Kafka, service health)
+# Create scripts/custom-env-checks.sh in your project to add custom checks
+# Example custom-env-checks.sh:
+#   check_supabase_connection() {
+#     # Your custom check logic
+#   }
+#   CUSTOM_CHECKS="check_supabase_connection|check_kafka_topics|check_service_health"
+CUSTOM_CHECKS=""
+if [ -f "scripts/custom-env-checks.sh" ]; then
+    # shellcheck source=/dev/null
+    . scripts/custom-env-checks.sh
+fi
+# --- End Extensibility Hook ---
 
 # Colors for output (if terminal supports it)
 if [ -t 1 ]; then
@@ -39,6 +61,9 @@ echo ""
 INSTALLED=0
 MISSING=0
 FAILED_CHECKS=0
+CORE_MISSING=0
+CORE_FAILED=0
+CUSTOM_FAILED=0
 
 # POSIX-compliant version comparison function
 # Usage: version_compare "18.1.0" ">=18"
@@ -74,12 +99,16 @@ check_tool() {
     tool_name="$1"
     command_name="$2"
     required_version="$3"
+    is_core="$4"
 
     printf "%-15s" "$tool_name:"
 
     if ! command -v "$command_name" >/dev/null 2>&1; then
         printf "${RED}✗ not installed${RESET}\n"
         MISSING=$((MISSING + 1))
+        if [ "$is_core" = "true" ]; then
+            CORE_MISSING=$((CORE_MISSING + 1))
+        fi
         return 1
     fi
 
@@ -97,6 +126,9 @@ check_tool() {
     else
         printf "${RED}✗ wrong version${RESET} (found: $version_output, required: $required_version)\n"
         FAILED_CHECKS=$((FAILED_CHECKS + 1))
+        if [ "$is_core" = "true" ]; then
+            CORE_FAILED=$((CORE_FAILED + 1))
+        fi
         return 1
     fi
 }
@@ -117,9 +149,7 @@ process_tools() {
         # If there's no version, cut returns the command name. Clear it.
         if [ "$required_version" = "$command_name" ]; then required_version=""; fi
 
-        if ! check_tool "$tool_name" "$command_name" "$required_version" && [ "$is_core" = "true" ]; then
-            FAILED_CHECKS=$((FAILED_CHECKS + 1))
-        fi
+        check_tool "$tool_name" "$command_name" "$required_version" "$is_core" || true
     done
 }
 
@@ -131,12 +161,65 @@ echo ""
 echo "Optional Tools:"
 process_tools "$OPTIONAL_TOOLS" "false"
 
+# Run custom checks if defined
+if [ -n "$CUSTOM_CHECKS" ]; then
+    echo ""
+    echo "Custom Checks:"
+    set -f
+    for custom_check in $CUSTOM_CHECKS; do
+        set +f
+        printf "%-15s" "$custom_check:"
+        if command -v "$custom_check" >/dev/null 2>&1; then
+            if "$custom_check"; then
+                printf "${GREEN}✓ passed${RESET}\n"
+            else
+                printf "${RED}✗ failed${RESET}\n"
+                CUSTOM_FAILED=$((CUSTOM_FAILED + 1))
+            fi
+        else
+            printf "${YELLOW}⚠ function not found${RESET}\n"
+            CUSTOM_FAILED=$((CUSTOM_FAILED + 1))
+        fi
+    done
+fi
+
 echo ""
 echo "${BLUE}=== Summary ===${RESET}"
-if [ "$FAILED_CHECKS" -gt 0 ] || [ "$MISSING" -gt 0 ]; then
-    echo "${RED}✗ Environment check failed.${RESET} Please fix the issues marked with ✗."
-    exit 1
+
+# Exit codes:
+# 0 = All checks passed
+# 1 = Core tools missing/failed (required)
+# 2 = Optional tools missing/failed (non-critical)
+# 3 = Custom checks failed (project-specific)
+
+if [ "$CI_MODE" = "true" ]; then
+    # In CI mode, only fail on core tool issues
+    if [ "$CORE_FAILED" -gt 0 ] || [ "$CORE_MISSING" -gt 0 ]; then
+        echo "${RED}✗ Core tool check failed.${RESET} Please fix the issues marked with ✗."
+        exit 1
+    else
+        if [ "$FAILED_CHECKS" -gt 0 ] || [ "$MISSING" -gt 0 ]; then
+            echo "${YELLOW}⚠️  Some optional tools missing (continuing in CI mode)${RESET}"
+        fi
+        if [ "$CUSTOM_FAILED" -gt 0 ]; then
+            echo "${YELLOW}⚠️  Some custom checks failed (continuing in CI mode)${RESET}"
+        fi
+        echo "${GREEN}✓ Core tools check passed!${RESET}"
+        exit 0
+    fi
 else
-    echo "${GREEN}✓ Environment check passed!${RESET}"
-    exit 0
+    # In non-CI mode, use different exit codes
+    if [ "$CORE_FAILED" -gt 0 ] || [ "$CORE_MISSING" -gt 0 ]; then
+        echo "${RED}✗ Core tool check failed.${RESET} Please fix the issues marked with ✗."
+        exit 1  # Required tools missing
+    elif [ "$CUSTOM_FAILED" -gt 0 ]; then
+        echo "${RED}✗ Custom checks failed.${RESET} Please fix the issues marked with ✗."
+        exit 3  # Custom checks failed
+    elif [ "$FAILED_CHECKS" -gt 0 ] || [ "$MISSING" -gt 0 ]; then
+        echo "${YELLOW}⚠️  Some optional tools missing (non-critical)${RESET}"
+        exit 2  # Optional tools missing
+    else
+        echo "${GREEN}✓ Environment check passed!${RESET}"
+        exit 0  # All checks passed
+    fi
 fi

@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# deploy.config.sh.example - Deployment configuration
+#
+# Copy this file to deploy.config.sh in your project root
+# to customize deployment behavior per service type.
+#
+# Usage:
+#   1. Copy this file: cp scripts/deploy.config.sh.example deploy.config.sh
+#   2. Customize the configuration for your project
+#   3. Run: ./scripts/simple-deploy.sh
+
+# --- Global Configuration ---
+
+# Default build command (used if service-specific not defined)
+# DEPLOY_BUILD_CMD="npm run build"
+
+# Default test command
+# DEPLOY_TEST_CMD="npm test"
+
+# Default build output directories (checked in order)
+# DEPLOY_BUILD_DIRS="dist build out .next"
+
+# Artifact naming format
+# Placeholders: {name}, {version}, {timestamp}
+# DEPLOY_ARTIFACT_FORMAT="{name}-{version}-{timestamp}.tar.gz"
+
+# --- Service-Specific Configuration ---
+
+# Frontend services (React, Next.js, Vue, etc.)
+# DEPLOY_BUILD_CMD_FRONTEND="npm run build"
+# DEPLOY_BUILD_DIRS_FRONTEND="dist build out .next"
+
+# Backend services (Node.js, Express, etc.)
+# DEPLOY_BUILD_CMD_BACKEND="npm run build"
+# DEPLOY_BUILD_DIRS_BACKEND="dist build lib"
+
+# Automation/script services
+# DEPLOY_BUILD_CMD_AUTOMATION="npm run build"
+# DEPLOY_BUILD_DIRS_AUTOMATION="dist build"
+
+# ESM modules
+# DEPLOY_BUILD_CMD_ESM="npm run build"
+# DEPLOY_BUILD_DIRS_ESM="dist build"
+
+# --- Examples ---
+
+# Example 1: Next.js frontend with custom build
+# DEPLOY_BUILD_CMD_FRONTEND="npm run build && npm run export"
+# DEPLOY_BUILD_DIRS_FRONTEND="out"
+
+# Example 2: Python backend (if using npm scripts to wrap Python)
+# DEPLOY_BUILD_CMD_BACKEND="npm run build:python"
+# DEPLOY_BUILD_DIRS_BACKEND="dist"
+
+# Example 3: Custom artifact naming with environment
+# DEPLOY_ARTIFACT_FORMAT="{name}-{version}-{env}-{timestamp}.tar.gz"
+# # Note: You'd need to set {env} variable in the script
+
+# Example 4: Skip build for certain services
+# DEPLOY_BUILD_CMD_AUTOMATION="echo 'No build needed'"
+# DEPLOY_BUILD_DIRS_AUTOMATION="."

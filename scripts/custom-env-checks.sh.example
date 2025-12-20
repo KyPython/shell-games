@@ -1,0 +1,101 @@
+#!/bin/sh
+#
+# custom-env-checks.sh.example - Example custom environment checks
+#
+# Copy this file to scripts/custom-env-checks.sh in your project
+# and implement your custom checks.
+#
+# Custom checks are automatically run by dev-env-check.sh
+#
+# Usage:
+#   1. Copy this file: cp scripts/custom-env-checks.sh.example scripts/custom-env-checks.sh
+#   2. Implement your custom check functions
+#   3. Add function names to CUSTOM_CHECKS variable
+#   4. Run: ./scripts/dev-env-check.sh
+
+# Example: Check Supabase connection
+check_supabase_connection() {
+    # Check if Supabase CLI is installed
+    if ! command -v supabase >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    # Check if Supabase project is linked
+    if [ ! -f ".supabase/config.toml" ]; then
+        return 1
+    fi
+    
+    # Try to ping Supabase (example)
+    # supabase status >/dev/null 2>&1
+    return 0
+}
+
+# Example: Check Kafka topics
+check_kafka_topics() {
+    # Check if Kafka CLI tools are available
+    if ! command -v kafka-topics >/dev/null 2>&1; then
+        return 1
+    fi
+    
+    # Check if required topics exist (example)
+    # kafka-topics --list --bootstrap-server localhost:9092 | grep -q "my-topic" || return 1
+    return 0
+}
+
+# Example: Check service health endpoints
+check_service_health() {
+    # Check if required services are running
+    # Example: Check if local services are accessible
+    
+    # Check frontend service
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -f -s http://localhost:3000/health >/dev/null 2>&1; then
+            return 1
+        fi
+    fi
+    
+    # Check backend service
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -f -s http://localhost:8000/health >/dev/null 2>&1; then
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
+# Example: Check database connection
+check_database_connection() {
+    # Check if PostgreSQL is running
+    if command -v psql >/dev/null 2>&1; then
+        if ! psql -h localhost -U postgres -d mydb -c "SELECT 1" >/dev/null 2>&1; then
+            return 1
+        fi
+    else
+        return 1
+    fi
+    
+    return 0
+}
+
+# Example: Check environment variables
+check_env_variables() {
+    # Check if required environment variables are set
+    if [ -z "${API_KEY:-}" ]; then
+        return 1
+    fi
+    
+    if [ -z "${DATABASE_URL:-}" ]; then
+        return 1
+    fi
+    
+    return 0
+}
+
+# List of custom checks to run
+# Format: space-separated function names
+# Example: CUSTOM_CHECKS="check_supabase_connection check_kafka_topics check_service_health"
+CUSTOM_CHECKS=""
+
+# Uncomment and modify to enable custom checks:
+# CUSTOM_CHECKS="check_supabase_connection check_kafka_topics check_service_health"
