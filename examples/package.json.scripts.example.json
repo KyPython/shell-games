@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "check-env": "./scripts/dev-env-check.sh",
+    "check-env:ci": "CI=true ./scripts/dev-env-check.sh",
+    "deploy": "./scripts/simple-deploy.sh",
+    "deploy:staging": "./scripts/simple-deploy.sh staging",
+    "deploy:production": "./scripts/simple-deploy.sh production",
+    "test:all": "./scripts/test-all.sh",
+    "lint:test": "./scripts/lint-and-test.sh"
+  }
+}

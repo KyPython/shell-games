@@ -60,3 +60,4 @@
 # Example 4: Skip build for certain services
 # DEPLOY_BUILD_CMD_AUTOMATION="echo 'No build needed'"
 # DEPLOY_BUILD_DIRS_AUTOMATION="."
+

@@ -143,3 +143,4 @@ else
     echo "${GREEN}✓ All checks passed!${RESET}"
     exit 0
 fi
+

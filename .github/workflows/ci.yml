@@ -86,3 +86,4 @@ jobs:
         run: |
           CI=true ./scripts/simple-deploy.sh || echo "⚠️ No deployable services found (continuing)"
         continue-on-error: true
+

@@ -1,0 +1,27 @@
+name: Shell Games CI Example
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  check-environment:
+    name: Check Development Environment
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Make scripts executable
+        run: chmod +x scripts/*.sh scripts/lib/*.sh || true
+      
+      - name: Check development environment
+        run: |
+          CI=true ./scripts/dev-env-check.sh || echo "⚠️ Some optional tools missing (continuing)"
+        continue-on-error: true

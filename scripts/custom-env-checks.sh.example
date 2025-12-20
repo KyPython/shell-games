@@ -99,3 +99,4 @@ CUSTOM_CHECKS=""
 
 # Uncomment and modify to enable custom checks:
 # CUSTOM_CHECKS="check_supabase_connection check_kafka_topics check_service_health"
+

@@ -271,21 +271,28 @@ All scripts are available as npm commands for easy access:
 {
   "scripts": {
     "check-env": "./scripts/dev-env-check.sh",
+    "check-env:ci": "CI=true ./scripts/dev-env-check.sh",
     "gen:project": "./scripts/new-node-project.sh",
     "deploy": "./scripts/simple-deploy.sh",
+    "deploy:staging": "./scripts/simple-deploy.sh staging",
+    "deploy:production": "./scripts/simple-deploy.sh production",
     "test:all": "./scripts/test-all.sh",
     "lint:test": "./scripts/lint-and-test.sh"
   }
 }
 ```
 
+**Quick Setup:**
+Copy the scripts from [examples/package.json.scripts.example.json](./examples/package.json.scripts.example.json) to your `package.json`.
+
 **Usage:**
 ```bash
 npm run check-env      # Check development environment
-npm run gen:project    # Generate new project (requires argument)
-npm run deploy         # Deploy current project
-npm run test:all       # Test all services in monorepo
-npm run lint:test      # Lint and test all services
+npm run check-env:ci  # Check environment in CI mode
+npm run gen:project   # Generate new project (requires argument)
+npm run deploy        # Deploy current project
+npm run test:all      # Test all services in monorepo
+npm run lint:test     # Lint and test all services
 ```
 
 ### 2. Multi-Service Project Support
@@ -335,6 +342,9 @@ All scripts support CI/CD environments with the `CI=true` environment variable:
 - **Clear output**: Works with or without color support
 
 **GitHub Actions Example:**
+See [.github/workflows/example.yml](./.github/workflows/example.yml) for a complete workflow example.
+
+Quick example:
 ```yaml
 - name: Check development environment
   run: |
