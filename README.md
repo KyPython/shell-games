@@ -99,6 +99,66 @@ The toolkit includes a port configuration system to avoid hardcoded ports in scr
 - `scripts/lib/port-config.sh` - Port configuration loader
 - `scripts/lib/port-validation.sh` - Port validation utilities
 
+### Migration Tool
+
+Migrate existing projects from hardcoded ports to port configuration:
+
+```bash
+./scripts/migrate-ports.sh                    # Migrate ports
+./scripts/migrate-ports.sh --dry-run         # Preview changes
+./scripts/migrate-ports.sh --backup          # Create backups first
+```
+
+**Features:**
+- ✅ Scans scripts for hardcoded ports
+- ✅ Extracts ports to configuration file
+- ✅ Updates scripts to use port variables
+- ✅ Dry-run mode for safe preview
+- ✅ Backup creation before changes
+
+### Template System
+
+Generate development scripts from templates:
+
+```bash
+./scripts/generate-scripts.sh                    # Generate all scripts
+./scripts/generate-scripts.sh --template start-dev  # Generate specific script
+```
+
+**Available Templates:**
+- `start-dev.sh` - Start all development servers
+- `stop-dev.sh` - Stop all development servers
+- `health-check.sh` - Check health of all services
+
+**Features:**
+- ✅ Uses port configuration system
+- ✅ Auto-detects service structure
+- ✅ Port conflict detection
+- ✅ Regeneratable from templates
+
+### Dependency Detection
+
+Automatically detect and install missing dependencies:
+
+```bash
+source scripts/lib/dependency-detection.sh
+check_and_install_deps              # Check current directory
+check_all_services                  # Check all services in monorepo
+```
+
+**Supported Package Managers:**
+- ✅ npm, yarn, pnpm (Node.js)
+- ✅ pip, pip3, poetry (Python)
+- ✅ cargo (Rust)
+- ✅ go mod (Go)
+
+**Features:**
+- ✅ Auto-detects package manager
+- ✅ Checks if dependencies installed
+- ✅ Prompts for installation (non-CI)
+- ✅ Auto-installs in CI mode
+- ✅ Monorepo support
+
 ### `dev-env-check.sh`
 
 Checks for installed development tools and reports their versions. Useful for:

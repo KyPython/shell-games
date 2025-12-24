@@ -1,0 +1,65 @@
+#!/bin/sh
+#
+# start-dev.sh - Start development servers
+# Generated from template - DO NOT EDIT MANUALLY
+# Regenerate with: devops-suite generate scripts
+#
+# This script starts all development servers using port configuration.
+
+set -e
+
+# Load port configuration
+if [ -f "scripts/lib/port-config.sh" ]; then
+    # shellcheck source=/dev/null
+    . scripts/lib/port-config.sh
+else
+    echo "Warning: Port configuration not found. Using defaults." >&2
+    FRONTEND_PORT=${FRONTEND_PORT:-3000}
+    BACKEND_PORT=${BACKEND_PORT:-3030}
+    AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+fi
+
+# Load port validation if available
+if [ -f "scripts/lib/port-validation.sh" ]; then
+    # shellcheck source=/dev/null
+    . scripts/lib/port-validation.sh
+fi
+
+# Check for port conflicts
+check_port_conflicts || {
+    echo "Error: Port conflicts detected. Please resolve before starting." >&2
+    exit 1
+}
+
+echo "Starting development servers..."
+echo "  Frontend: http://localhost:${FRONTEND_PORT}"
+echo "  Backend: http://localhost:${BACKEND_PORT}"
+echo "  Automation: http://localhost:${AUTOMATION_PORT}"
+echo ""
+
+# Start frontend (if exists)
+if [ -d "frontend" ] || [ -f "package.json" ]; then
+    echo "Starting frontend on port ${FRONTEND_PORT}..."
+    FRONTEND_PORT=${FRONTEND_PORT} npm run dev --prefix frontend 2>/dev/null || \
+    PORT=${FRONTEND_PORT} npm run dev 2>/dev/null || \
+    echo "  Frontend not configured"
+fi
+
+# Start backend (if exists)
+if [ -d "backend" ] || [ -f "api/package.json" ]; then
+    echo "Starting backend on port ${BACKEND_PORT}..."
+    PORT=${BACKEND_PORT} npm run dev --prefix backend 2>/dev/null || \
+    PORT=${BACKEND_PORT} npm run dev --prefix api 2>/dev/null || \
+    echo "  Backend not configured"
+fi
+
+# Start automation service (if exists)
+if [ -d "automation" ]; then
+    echo "Starting automation on port ${AUTOMATION_PORT}..."
+    PORT=${AUTOMATION_PORT} npm run dev --prefix automation 2>/dev/null || \
+    echo "  Automation not configured"
+fi
+
+echo ""
+echo "✓ Development servers started"
+echo "  Use './stop-dev.sh' to stop all servers"

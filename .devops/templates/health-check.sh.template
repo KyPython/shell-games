@@ -1,0 +1,74 @@
+#!/bin/sh
+#
+# health-check.sh - Check health of all services
+# Generated from template - DO NOT EDIT MANUALLY
+# Regenerate with: devops-suite generate scripts
+#
+# This script checks the health of all services using port configuration.
+
+set -e
+
+# Load port configuration
+if [ -f "scripts/lib/port-config.sh" ]; then
+    # shellcheck source=/dev/null
+    . scripts/lib/port-config.sh
+else
+    echo "Warning: Port configuration not found. Using defaults." >&2
+    FRONTEND_PORT=${FRONTEND_PORT:-3000}
+    BACKEND_PORT=${BACKEND_PORT:-3030}
+    AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+fi
+
+# Health check function
+check_health() {
+    service="$1"
+    port="$2"
+    url="$3"
+    
+    if [ -z "$url" ]; then
+        url="http://localhost:${port}/health"
+    fi
+    
+    printf "Checking %s (port %s): " "$service" "$port"
+    
+    if command -v curl >/dev/null 2>&1; then
+        if curl -f -s "$url" >/dev/null 2>&1; then
+            echo "✓ Healthy"
+            return 0
+        else
+            echo "✗ Unhealthy or not responding"
+            return 1
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if wget -q --spider "$url" 2>/dev/null; then
+            echo "✓ Healthy"
+            return 0
+        else
+            echo "✗ Unhealthy or not responding"
+            return 1
+        fi
+    else
+        echo "⚠ Cannot check (curl/wget not available)"
+        return 2
+    fi
+}
+
+echo "Health Check - Development Services"
+echo "===================================="
+echo ""
+
+# Check services
+failed=0
+
+check_health "Frontend" "${FRONTEND_PORT}" "http://localhost:${FRONTEND_PORT}/health" || failed=$((failed + 1))
+check_health "Backend" "${BACKEND_PORT}" "http://localhost:${BACKEND_PORT}/health" || failed=$((failed + 1))
+check_health "Automation" "${AUTOMATION_PORT}" "http://localhost:${AUTOMATION_PORT}/health" || failed=$((failed + 1))
+
+echo ""
+if [ "$failed" -eq 0 ]; then
+    echo "✓ All services healthy"
+    exit 0
+else
+    echo "✗ $failed service(s) unhealthy"
+    exit 1
+fi

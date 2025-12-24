@@ -1,0 +1,56 @@
+#!/bin/sh
+#
+# stop-dev.sh - Stop development servers
+# Generated from template - DO NOT EDIT MANUALLY
+# Regenerate with: devops-suite generate scripts
+#
+# This script stops all development servers using port configuration.
+
+set -e
+
+# Load port configuration
+if [ -f "scripts/lib/port-config.sh" ]; then
+    # shellcheck source=/dev/null
+    . scripts/lib/port-config.sh
+else
+    echo "Warning: Port configuration not found. Using defaults." >&2
+    FRONTEND_PORT=${FRONTEND_PORT:-3000}
+    BACKEND_PORT=${BACKEND_PORT:-3030}
+    AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+fi
+
+echo "Stopping development servers..."
+echo ""
+
+# Function to kill process on port
+kill_port() {
+    port="$1"
+    service="$2"
+    
+    if command -v lsof >/dev/null 2>&1; then
+        pid=$(lsof -ti ":$port" 2>/dev/null)
+        if [ -n "$pid" ]; then
+            echo "  Stopping $service on port $port (PID: $pid)..."
+            kill "$pid" 2>/dev/null || true
+            sleep 1
+            # Force kill if still running
+            if lsof -ti ":$port" >/dev/null 2>&1; then
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+        else
+            echo "  $service on port $port is not running"
+        fi
+    elif command -v fuser >/dev/null 2>&1; then
+        fuser -k "${port}/tcp" 2>/dev/null || true
+    else
+        echo "  Warning: Cannot check port $port (lsof/fuser not available)"
+    fi
+}
+
+# Stop services
+kill_port "${FRONTEND_PORT}" "Frontend"
+kill_port "${BACKEND_PORT}" "Backend"
+kill_port "${AUTOMATION_PORT}" "Automation"
+
+echo ""
+echo "✓ Development servers stopped"
