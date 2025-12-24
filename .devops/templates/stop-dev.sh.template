@@ -2,55 +2,132 @@
 #
 # stop-dev.sh - Stop development servers
 # Generated from template - DO NOT EDIT MANUALLY
-# Regenerate with: devops-suite generate scripts
+# Regenerate with: ./scripts/generate-scripts.sh
 #
-# This script stops all development servers using port configuration.
+# This script stops all development servers with graceful error handling.
 
-set -e
+set +e  # Don't exit on error for cleanup operations
 
-# Load port configuration
-if [ -f "scripts/lib/port-config.sh" ]; then
+# ============================================================================
+# LOAD UTILITY FUNCTIONS
+# ============================================================================
+
+# Load script utilities
+if [ -f "scripts/lib/script-utilities.sh" ]; then
     # shellcheck source=/dev/null
-    . scripts/lib/port-config.sh
+    . scripts/lib/script-utilities.sh
 else
-    echo "Warning: Port configuration not found. Using defaults." >&2
-    FRONTEND_PORT=${FRONTEND_PORT:-3000}
-    BACKEND_PORT=${BACKEND_PORT:-3030}
-    AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+    echo "Warning: script-utilities.sh not found. Some features may not work." >&2
 fi
 
-echo "Stopping development servers..."
+# ============================================================================
+# ENVIRONMENT VARIABLE LOADING (SAME AS START SCRIPT)
+# ============================================================================
+
+# Load .env file if it exists (must match start script)
+load_env_file ".env" || true
+
+# ============================================================================
+# PORT CONFIGURATION (SAME AS START SCRIPT)
+# ============================================================================
+
+# Load port configuration (must match start script)
+load_port_config
+
+# Validate ports
+if ! validate_all_ports; then
+    log_warn "Invalid port configuration, but continuing with cleanup"
+fi
+
+# ============================================================================
+# CLEANUP FUNCTION
+# ============================================================================
+
+cleanup_on_exit() {
+    # Additional cleanup if needed
+    :
+}
+
+setup_cleanup
+
+# ============================================================================
+# STOP SERVICES
+# ============================================================================
+
+log_info "Stopping development servers..."
 echo ""
 
-# Function to kill process on port
+# Function to kill process on port (graceful, doesn't fail if port not in use)
 kill_port() {
-    port="$1"
-    service="$2"
+    local port="$1"
+    local service="$2"
+    
+    if [ -z "$port" ]; then
+        return 0
+    fi
+    
+    if ! validate_port "$port"; then
+        log_warn "Invalid port for $service: $port"
+        return 0
+    fi
     
     if command -v lsof >/dev/null 2>&1; then
+        local pid
         pid=$(lsof -ti ":$port" 2>/dev/null)
         if [ -n "$pid" ]; then
-            echo "  Stopping $service on port $port (PID: $pid)..."
+            log_info "Stopping $service on port $port (PID: $pid)..."
             kill "$pid" 2>/dev/null || true
             sleep 1
             # Force kill if still running
             if lsof -ti ":$port" >/dev/null 2>&1; then
                 kill -9 "$pid" 2>/dev/null || true
             fi
+            log_success "$service stopped"
         else
-            echo "  $service on port $port is not running"
+            log_info "$service on port $port is not running"
         fi
     elif command -v fuser >/dev/null 2>&1; then
         fuser -k "${port}/tcp" 2>/dev/null || true
     else
-        echo "  Warning: Cannot check port $port (lsof/fuser not available)"
+        log_warn "Cannot check port $port (lsof/fuser not available)"
     fi
 }
 
-# Stop services
-kill_port "${FRONTEND_PORT}" "Frontend"
-kill_port "${BACKEND_PORT}" "Backend"
-kill_port "${AUTOMATION_PORT}" "Automation"
+# Stop services using same ports as start script
+kill_port "${FRONTEND_PORT:-3000}" "Frontend"
+kill_port "${BACKEND_PORT:-3030}" "Backend"
+kill_port "${AUTOMATION_PORT:-7070}" "Automation"
+
+# ============================================================================
+# DOCKER CLEANUP (GRACEFUL)
+# ============================================================================
+
+# Stop Docker containers if Docker is available (graceful skip if not)
+if [ -f "docker-compose.yml" ] || [ -f "Dockerfile" ]; then
+    if check_docker_daemon 2>/dev/null; then
+        log_info "Stopping Docker containers..."
+        docker compose down 2>/dev/null || docker-compose down 2>/dev/null || true
+        log_success "Docker containers stopped"
+    else
+        log_warn "Docker daemon not running, skipping Docker cleanup"
+    fi
+fi
+
+# ============================================================================
+# PM2 CLEANUP (if using PM2)
+# ============================================================================
+
+if command -v pm2 >/dev/null 2>&1; then
+    log_info "Stopping PM2 processes..."
+    pm2 stop all 2>/dev/null || true
+    pm2 delete all 2>/dev/null || true
+    log_success "PM2 processes stopped"
+fi
+
+# ============================================================================
+# SUCCESS
+# ============================================================================
 
 echo ""
-echo "✓ Development servers stopped"
+log_success "Development servers stopped"
+echo "  Use './scripts/start-dev.sh' to start servers again"

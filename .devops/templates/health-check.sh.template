@@ -2,73 +2,160 @@
 #
 # health-check.sh - Check health of all services
 # Generated from template - DO NOT EDIT MANUALLY
-# Regenerate with: devops-suite generate scripts
+# Regenerate with: ./scripts/generate-scripts.sh
 #
-# This script checks the health of all services using port configuration.
+# This script checks the health of all services with validation and clear reporting.
 
-set -e
+set -e  # Exit on error
 
-# Load port configuration
-if [ -f "scripts/lib/port-config.sh" ]; then
+# ============================================================================
+# LOAD UTILITY FUNCTIONS
+# ============================================================================
+
+# Load script utilities
+if [ -f "scripts/lib/script-utilities.sh" ]; then
     # shellcheck source=/dev/null
-    . scripts/lib/port-config.sh
+    . scripts/lib/script-utilities.sh
 else
-    echo "Warning: Port configuration not found. Using defaults." >&2
-    FRONTEND_PORT=${FRONTEND_PORT:-3000}
-    BACKEND_PORT=${BACKEND_PORT:-3030}
-    AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+    echo "Warning: script-utilities.sh not found. Some features may not work." >&2
 fi
 
-# Health check function
-check_health() {
-    service="$1"
-    port="$2"
-    url="$3"
+# ============================================================================
+# ENVIRONMENT VARIABLE LOADING
+# ============================================================================
+
+# Load .env file if it exists
+load_env_file ".env" || true
+
+# ============================================================================
+# PORT CONFIGURATION & VALIDATION
+# ============================================================================
+
+# Load port configuration
+load_port_config
+
+# Validate all ports
+if ! validate_all_ports; then
+    handle_error "Invalid port configuration detected"
+fi
+
+# ============================================================================
+# HEALTH CHECK FUNCTION
+# ============================================================================
+
+check_service_health() {
+    local service="$1"
+    local port="$2"
+    local health_url="${3:-}"
     
-    if [ -z "$url" ]; then
-        url="http://localhost:${port}/health"
+    if [ -z "$port" ]; then
+        log_warn "$service: No port configured"
+        return 1
+    fi
+    
+    if ! validate_port "$port"; then
+        log_error "$service: Invalid port $port"
+        return 1
+    fi
+    
+    # Default health URL if not provided
+    if [ -z "$health_url" ]; then
+        health_url="http://localhost:${port}/health"
+    fi
+    
+    # Validate URL format
+    if ! is_valid_url "$health_url"; then
+        log_error "$service: Invalid health URL: $health_url"
+        return 1
     fi
     
     printf "Checking %s (port %s): " "$service" "$port"
     
     if command -v curl >/dev/null 2>&1; then
-        if curl -f -s "$url" >/dev/null 2>&1; then
-            echo "✓ Healthy"
+        if curl -f -s "$health_url" >/dev/null 2>&1; then
+            log_success "Healthy"
             return 0
         else
-            echo "✗ Unhealthy or not responding"
+            log_error "Unhealthy or not responding"
             return 1
         fi
     elif command -v wget >/dev/null 2>&1; then
-        if wget -q --spider "$url" 2>/dev/null; then
-            echo "✓ Healthy"
+        if wget -q --spider "$health_url" 2>/dev/null; then
+            log_success "Healthy"
             return 0
         else
-            echo "✗ Unhealthy or not responding"
+            log_error "Unhealthy or not responding"
             return 1
         fi
     else
-        echo "⚠ Cannot check (curl/wget not available)"
+        log_warn "Cannot check (curl/wget not available)"
         return 2
     fi
 }
 
-echo "Health Check - Development Services"
+# ============================================================================
+# DEPENDENCY VERIFICATION
+# ============================================================================
+
+log_info "Verifying dependencies..."
+
+# Check npm dependencies
+if [ -f "package.json" ]; then
+    if [ ! -d "node_modules" ]; then
+        log_warn "node_modules not found, installing dependencies..."
+        install_npm_deps "." || log_error "Failed to install npm dependencies"
+    else
+        log_success "npm dependencies installed"
+    fi
+fi
+
+# Check Python dependencies
+if [ -f "requirements.txt" ]; then
+    log_info "Python dependencies found (manual verification recommended)"
+fi
+
+# ============================================================================
+# SERVICE HEALTH CHECKS
+# ============================================================================
+
+echo ""
+log_info "Health Check - Development Services"
 echo "===================================="
 echo ""
 
-# Check services
 failed=0
 
-check_health "Frontend" "${FRONTEND_PORT}" "http://localhost:${FRONTEND_PORT}/health" || failed=$((failed + 1))
-check_health "Backend" "${BACKEND_PORT}" "http://localhost:${BACKEND_PORT}/health" || failed=$((failed + 1))
-check_health "Automation" "${AUTOMATION_PORT}" "http://localhost:${AUTOMATION_PORT}/health" || failed=$((failed + 1))
+# Check services
+check_service_health "Frontend" "${FRONTEND_PORT:-3000}" "http://localhost:${FRONTEND_PORT:-3000}/health" || failed=$((failed + 1))
+check_service_health "Backend" "${BACKEND_PORT:-3030}" "http://localhost:${BACKEND_PORT:-3030}/health" || failed=$((failed + 1))
+check_service_health "Automation" "${AUTOMATION_PORT:-7070}" "http://localhost:${AUTOMATION_PORT:-7070}/health" || failed=$((failed + 1))
+
+# ============================================================================
+# DOCKER HEALTH CHECK
+# ============================================================================
+
+if [ -f "docker-compose.yml" ] || [ -f "Dockerfile" ]; then
+    if check_docker_daemon 2>/dev/null; then
+        log_info "Checking Docker containers..."
+        if docker ps >/dev/null 2>&1; then
+            log_success "Docker daemon running"
+        else
+            log_warn "Docker daemon running but no containers found"
+        fi
+    else
+        log_warn "Docker daemon not running (skipping Docker health check)"
+    fi
+fi
+
+# ============================================================================
+# SUMMARY
+# ============================================================================
 
 echo ""
 if [ "$failed" -eq 0 ]; then
-    echo "✓ All services healthy"
+    log_success "All services healthy"
     exit 0
 else
-    echo "✗ $failed service(s) unhealthy"
+    log_error "$failed service(s) unhealthy"
     exit 1
 fi

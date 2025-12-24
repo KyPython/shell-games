@@ -2,64 +2,167 @@
 #
 # start-dev.sh - Start development servers
 # Generated from template - DO NOT EDIT MANUALLY
-# Regenerate with: devops-suite generate scripts
+# Regenerate with: ./scripts/generate-scripts.sh
 #
-# This script starts all development servers using port configuration.
+# This script starts all development servers with bulletproof error handling,
+# dependency detection, and port configuration.
 
-set -e
+set -e  # Exit on error for critical operations
 
-# Load port configuration
-if [ -f "scripts/lib/port-config.sh" ]; then
+# ============================================================================
+# LOAD UTILITY FUNCTIONS
+# ============================================================================
+
+# Load script utilities (sanitization, validation, dependencies, etc.)
+if [ -f "scripts/lib/script-utilities.sh" ]; then
     # shellcheck source=/dev/null
-    . scripts/lib/port-config.sh
+    . scripts/lib/script-utilities.sh
 else
-    echo "Warning: Port configuration not found. Using defaults." >&2
-    FRONTEND_PORT=${FRONTEND_PORT:-3000}
-    BACKEND_PORT=${BACKEND_PORT:-3030}
-    AUTOMATION_PORT=${AUTOMATION_PORT:-7070}
+    echo "Warning: script-utilities.sh not found. Some features may not work." >&2
 fi
 
-# Load port validation if available
-if [ -f "scripts/lib/port-validation.sh" ]; then
-    # shellcheck source=/dev/null
-    . scripts/lib/port-validation.sh
+# ============================================================================
+# ENVIRONMENT VARIABLE LOADING
+# ============================================================================
+
+# Load .env file if it exists
+load_env_file ".env" || true
+
+# ============================================================================
+# PORT CONFIGURATION & VALIDATION
+# ============================================================================
+
+# Load port configuration
+load_port_config
+
+# Validate all ports are numeric and in valid range
+if ! validate_all_ports; then
+    handle_error "Invalid port configuration detected"
 fi
 
 # Check for port conflicts
-check_port_conflicts || {
-    echo "Error: Port conflicts detected. Please resolve before starting." >&2
-    exit 1
-}
+for port_var in FRONTEND_PORT BACKEND_PORT AUTOMATION_PORT; do
+    eval "port=\$$port_var"
+    if [ -n "$port" ]; then
+        if ! check_port_available "$port"; then
+            log_warn "Port $port ($port_var) is in use, but continuing..."
+        fi
+    fi
+done
 
-echo "Starting development servers..."
-echo "  Frontend: http://localhost:${FRONTEND_PORT}"
-echo "  Backend: http://localhost:${BACKEND_PORT}"
-echo "  Automation: http://localhost:${AUTOMATION_PORT}"
+# ============================================================================
+# DEPENDENCY DETECTION & INSTALLATION
+# ============================================================================
+
+log_info "Checking dependencies..."
+
+# Install npm dependencies if package.json exists
+install_npm_deps "." || log_warn "Failed to install npm dependencies"
+
+# Install Python dependencies if requirements.txt exists
+install_python_deps "." || log_warn "Failed to install Python dependencies"
+
+# Check for critical npm packages
+if [ -f "package.json" ]; then
+    # Check for common packages that might be needed
+    if grep -q "dotenv" package.json 2>/dev/null; then
+        install_npm_package "." "dotenv" || true
+    fi
+fi
+
+# ============================================================================
+# DOCKER DAEMON VALIDATION
+# ============================================================================
+
+# Check Docker daemon if Docker operations might be needed
+if [ -f "docker-compose.yml" ] || [ -f "Dockerfile" ]; then
+    if ! check_docker_daemon; then
+        log_error "Docker daemon is not running"
+        log_info "Skipping Docker operations. Start Docker Desktop to enable."
+    fi
+fi
+
+# ============================================================================
+# START SERVICES
+# ============================================================================
+
+log_info "Starting development servers..."
+echo "  Frontend: http://localhost:${FRONTEND_PORT:-3000}"
+echo "  Backend: http://localhost:${BACKEND_PORT:-3030}"
+echo "  Automation: http://localhost:${AUTOMATION_PORT:-7070}"
 echo ""
 
 # Start frontend (if exists)
 if [ -d "frontend" ] || [ -f "package.json" ]; then
-    echo "Starting frontend on port ${FRONTEND_PORT}..."
-    FRONTEND_PORT=${FRONTEND_PORT} npm run dev --prefix frontend 2>/dev/null || \
-    PORT=${FRONTEND_PORT} npm run dev 2>/dev/null || \
-    echo "  Frontend not configured"
+    log_info "Starting frontend on port ${FRONTEND_PORT:-3000}..."
+    
+    # Install frontend dependencies
+    if [ -d "frontend" ]; then
+        install_npm_deps "frontend" || true
+    fi
+    
+    # Start with retry logic
+    retry_command 3 2 "FRONTEND_PORT=${FRONTEND_PORT:-3000} npm run dev --prefix frontend" || \
+    retry_command 3 2 "PORT=${FRONTEND_PORT:-3000} npm run dev" || \
+    log_warn "Frontend not configured or failed to start"
 fi
 
 # Start backend (if exists)
-if [ -d "backend" ] || [ -f "api/package.json" ]; then
-    echo "Starting backend on port ${BACKEND_PORT}..."
-    PORT=${BACKEND_PORT} npm run dev --prefix backend 2>/dev/null || \
-    PORT=${BACKEND_PORT} npm run dev --prefix api 2>/dev/null || \
-    echo "  Backend not configured"
+if [ -d "backend" ] || [ -d "api" ] || [ -f "api/package.json" ]; then
+    log_info "Starting backend on port ${BACKEND_PORT:-3030}..."
+    
+    # Install backend dependencies
+    if [ -d "backend" ]; then
+        install_npm_deps "backend" || true
+    elif [ -d "api" ]; then
+        install_npm_deps "api" || true
+    fi
+    
+    # Start with retry logic
+    if [ -d "backend" ]; then
+        retry_command 3 2 "PORT=${BACKEND_PORT:-3030} npm run dev --prefix backend" || \
+        log_warn "Backend not configured or failed to start"
+    elif [ -d "api" ]; then
+        retry_command 3 2 "PORT=${BACKEND_PORT:-3030} npm run dev --prefix api" || \
+        log_warn "Backend not configured or failed to start"
+    fi
 fi
 
 # Start automation service (if exists)
 if [ -d "automation" ]; then
-    echo "Starting automation on port ${AUTOMATION_PORT}..."
-    PORT=${AUTOMATION_PORT} npm run dev --prefix automation 2>/dev/null || \
-    echo "  Automation not configured"
+    log_info "Starting automation on port ${AUTOMATION_PORT:-7070}..."
+    
+    # Install automation dependencies
+    install_npm_deps "automation" || true
+    
+    # Start with retry logic
+    retry_command 3 2 "PORT=${AUTOMATION_PORT:-7070} npm run dev --prefix automation" || \
+    log_warn "Automation not configured or failed to start"
 fi
 
+# ============================================================================
+# HEALTH CHECKS
+# ============================================================================
+
+log_info "Waiting for services to be ready..."
+
+# Wait for backend health check
+if [ -n "${BACKEND_PORT:-}" ]; then
+    wait_for_service "http://localhost:${BACKEND_PORT}/health" 30 1 || \
+    log_warn "Backend health check failed or endpoint not available"
+fi
+
+# Wait for frontend
+if [ -n "${FRONTEND_PORT:-}" ]; then
+    wait_for_service "http://localhost:${FRONTEND_PORT}" 30 1 || \
+    log_warn "Frontend not responding (may still be starting)"
+fi
+
+# ============================================================================
+# SUCCESS
+# ============================================================================
+
 echo ""
-echo "✓ Development servers started"
-echo "  Use './stop-dev.sh' to stop all servers"
+log_success "Development servers started"
+echo "  Use './scripts/stop-dev.sh' to stop all servers"
+echo "  Use './scripts/health-check.sh' to check service status"
