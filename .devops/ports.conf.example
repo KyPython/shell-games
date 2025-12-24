@@ -1,0 +1,30 @@
+# Port Configuration
+# Copy this file to .devops/ports.conf and customize for your project
+#
+# Ports can be overridden via environment variables (highest priority)
+# Example: FRONTEND_PORT=3001 ./scripts/dev-env-check.sh
+#
+# Default ports (used if not specified):
+#   FRONTEND_PORT=3000
+#   BACKEND_PORT=3030
+#   AUTOMATION_PORT=7070
+#   METRICS_PORT=9091
+
+# Application Ports
+FRONTEND_PORT=3000
+BACKEND_PORT=3030
+AUTOMATION_PORT=7070
+METRICS_PORT=9091
+
+# Observability Stack Ports (optional)
+# Uncomment and customize if using observability tools
+# GRAFANA_PORT=3001
+# PROMETHEUS_PORT=9090
+# LOKI_PORT=3100
+# TEMPO_PORT=3200
+# OTEL_PORT=4318
+
+# Usage in scripts:
+#   source scripts/lib/port-config.sh
+#   echo "Frontend: http://localhost:$FRONTEND_PORT"
+#   echo "Backend: http://localhost:$BACKEND_PORT"

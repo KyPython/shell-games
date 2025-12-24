@@ -47,16 +47,26 @@ check_service_health() {
     # Check if required services are running
     # Example: Check if local services are accessible
     
+    # Load port configuration if available
+    if [ -f "scripts/lib/port-config.sh" ]; then
+        # shellcheck source=/dev/null
+        . scripts/lib/port-config.sh
+    fi
+    
+    # Use port variables with defaults
+    FRONTEND_PORT=${FRONTEND_PORT:-3000}
+    BACKEND_PORT=${BACKEND_PORT:-8000}
+    
     # Check frontend service
     if command -v curl >/dev/null 2>&1; then
-        if ! curl -f -s http://localhost:3000/health >/dev/null 2>&1; then
+        if ! curl -f -s "http://localhost:${FRONTEND_PORT}/health" >/dev/null 2>&1; then
             return 1
         fi
     fi
     
     # Check backend service
     if command -v curl >/dev/null 2>&1; then
-        if ! curl -f -s http://localhost:8000/health >/dev/null 2>&1; then
+        if ! curl -f -s "http://localhost:${BACKEND_PORT}/health" >/dev/null 2>&1; then
             return 1
         fi
     fi

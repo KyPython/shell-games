@@ -63,6 +63,42 @@ my-app/
     └── index.ts
 ```
 
+### Port Configuration System
+
+The toolkit includes a port configuration system to avoid hardcoded ports in scripts.
+
+**Setup:**
+
+1. Copy the port config template:
+   ```bash
+   cp .devops/ports.conf.example .devops/ports.conf
+   ```
+
+2. Customize ports in `.devops/ports.conf`:
+   ```bash
+   FRONTEND_PORT=3000
+   BACKEND_PORT=3030
+   AUTOMATION_PORT=7070
+   METRICS_PORT=9091
+   ```
+
+3. Use in your scripts:
+   ```bash
+   source scripts/lib/port-config.sh
+   echo "Frontend: http://localhost:$FRONTEND_PORT"
+   ```
+
+**Features:**
+- ✅ Centralized port configuration
+- ✅ Environment variable overrides
+- ✅ Port validation and conflict detection
+- ✅ Default values if config missing
+
+**Files:**
+- `.devops/ports.conf.example` - Port configuration template
+- `scripts/lib/port-config.sh` - Port configuration loader
+- `scripts/lib/port-validation.sh` - Port validation utilities
+
 ### `dev-env-check.sh`
 
 Checks for installed development tools and reports their versions. Useful for:

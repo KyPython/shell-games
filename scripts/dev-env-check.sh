@@ -25,6 +25,23 @@ CORE_TOOLS="Node.js|node|>=20 npm|npm|>=9 Git|git"
 OPTIONAL_TOOLS="Docker|docker Python 3|python3"
 # --- End Configuration ---
 
+# --- Port Configuration Check ---
+# Check port configuration if available
+check_port_config() {
+    if [ -f "scripts/lib/port-validation.sh" ]; then
+        # shellcheck source=/dev/null
+        . scripts/lib/port-validation.sh
+        if ! validate_port_config; then
+            return 1
+        fi
+        # Note: Port conflict checking is optional (may have false positives)
+        # Uncomment to enable:
+        # check_port_conflicts || true
+    fi
+    return 0
+}
+# --- End Port Configuration Check ---
+
 # --- Extensibility Hook ---
 # Allow projects to extend with custom checks (e.g., Supabase, Kafka, service health)
 # Create scripts/custom-env-checks.sh in your project to add custom checks
@@ -160,6 +177,18 @@ process_tools "$CORE_TOOLS" "true"
 echo ""
 echo "Optional Tools:"
 process_tools "$OPTIONAL_TOOLS" "false"
+
+# Port configuration check
+if [ -f ".devops/ports.conf" ] || [ -f "scripts/lib/port-config.sh" ]; then
+    echo ""
+    echo "Port Configuration:"
+    printf "%-15s" "port-config:"
+    if check_port_config; then
+        printf "${GREEN}✓ valid${RESET}\n"
+    else
+        printf "${YELLOW}⚠ issues found${RESET}\n"
+    fi
+fi
 
 # Run custom checks if defined
 if [ -n "$CUSTOM_CHECKS" ]; then
