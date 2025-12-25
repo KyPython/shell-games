@@ -116,9 +116,9 @@ Migrate existing projects from hardcoded ports to port configuration:
 - ✅ Dry-run mode for safe preview
 - ✅ Backup creation before changes
 
-### Template System
+### Template System - Bulletproof Script Generation
 
-Generate development scripts from templates:
+Generate production-ready development scripts from templates with automatic error handling, dependency detection, and security:
 
 ```bash
 ./scripts/generate-scripts.sh                    # Generate all scripts
@@ -126,15 +126,58 @@ Generate development scripts from templates:
 ```
 
 **Available Templates:**
-- `start-dev.sh` - Start all development servers
-- `stop-dev.sh` - Stop all development servers
-- `health-check.sh` - Check health of all services
+- `start-dev.sh` - Start all development servers (with auto-dependency installation)
+- `stop-dev.sh` - Stop all development servers (graceful cleanup)
+- `health-check.sh` - Check health of all services (with validation)
 
-**Features:**
-- ✅ Uses port configuration system
-- ✅ Auto-detects service structure
-- ✅ Port conflict detection
-- ✅ Regeneratable from templates
+**Bulletproof Features (Auto-Generated):**
+
+1. **Dynamic Port Configuration**
+   - Auto-detects ports from environment variables or config
+   - Validates port numbers (numeric, valid range)
+   - Synchronizes ports between start/stop scripts
+   - Port conflict detection
+
+2. **Dependency Detection & Auto-Installation**
+   - Detects missing npm packages and auto-installs
+   - Detects missing Python packages and auto-installs
+   - Verifies critical packages exist
+   - Supports npm, yarn, pnpm, pip, poetry
+
+3. **Docker Daemon Validation**
+   - Checks if Docker daemon is running before operations
+   - Clear error messages if Docker isn't available
+   - Graceful skip for stop scripts
+
+4. **Input Sanitization & Security**
+   - Automatic input sanitization functions
+   - All variables properly quoted
+   - Path validation (prevents directory traversal)
+   - URL validation before use
+
+5. **Error Handling & Recovery**
+   - Retry logic for transient failures
+   - Clear error messages with actionable guidance
+   - Graceful error handling for cleanup scripts
+   - Proper exit codes
+
+6. **Environment Variable Loading**
+   - Automatic `.env` file loading
+   - Handles missing `.env` gracefully
+   - Exports variables for child processes
+
+7. **Service Health Checks**
+   - Waits for services to be ready
+   - Validates service availability
+   - Clear status reporting
+
+**Utility Functions Library:**
+All generated scripts include `scripts/lib/script-utilities.sh` with:
+- Input sanitization (`sanitize_input`, `sanitize_path`, `validate_port`, `is_valid_url`)
+- Dependency management (`check_npm_package`, `install_npm_deps`, `check_python_package`)
+- Service health checks (`check_docker_daemon`, `check_port_available`, `wait_for_service`)
+- Error handling (`handle_error`, `retry_command`, `cleanup_on_exit`)
+- Logging (`log_info`, `log_warn`, `log_error`, `log_success`)
 
 ### Dependency Detection
 
@@ -230,6 +273,56 @@ This is a simplified deployment simulation - in production, you'd integrate with
 # Deploy a specific project
 ./scripts/simple-deploy.sh ../my-other-project
 ```
+
+### Terraform Formatting & Pre-Commit Hooks
+
+Automatically format and validate Terraform files before commits. Ensures consistent code style and catches syntax errors early.
+
+**Features:**
+- ✅ Auto-format Terraform files (`.tf`, `.tfvars`) on commit
+- ✅ Auto-stage formatted files (no need to re-add)
+- ✅ Validate Terraform syntax before allowing commits
+- ✅ Only fails if formatting can't be applied or validation fails
+
+**Setup:**
+
+```bash
+# Install the pre-commit hook
+./scripts/setup-terraform-pre-commit.sh
+# or via npm
+npm run infra:hooks
+```
+
+**Usage:**
+
+The hook runs automatically on every commit. You can also format manually:
+
+```bash
+# Format all Terraform files recursively
+npm run infra:format
+# or directly
+terraform fmt -recursive
+
+# Validate Terraform syntax
+npm run infra:validate
+# or directly
+terraform validate
+```
+
+**How it works:**
+
+1. When you commit, the pre-commit hook runs automatically
+2. It checks all staged `.tf` and `.tfvars` files
+3. Files that need formatting are automatically formatted with `terraform fmt`
+4. Formatted files are automatically staged with `git add`
+5. Terraform validation runs to ensure syntax is correct
+6. Commit proceeds if formatting succeeds and validation passes
+
+**Benefits:**
+- Consistent Terraform code style across the team
+- Catches syntax errors before they reach the repository
+- Zero manual formatting work required
+- Works seamlessly in CI/CD environments
 
 **What it does:**
 

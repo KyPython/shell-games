@@ -7,7 +7,10 @@
     "gen:project": "./scripts/new-node-project.sh",
     "deploy": "./scripts/simple-deploy.sh",
     "test:all": "./scripts/test-all.sh",
-    "lint:test": "./scripts/lint-and-test.sh"
+    "lint:test": "./scripts/lint-and-test.sh",
+    "infra:format": "terraform fmt -recursive",
+    "infra:validate": "terraform validate",
+    "infra:hooks": "./scripts/setup-terraform-pre-commit.sh"
   },
   "keywords": [
     "shell-scripts",
